@@ -1,6 +1,7 @@
 ###########NAMELIST for NONDIMENSIONAL PARAMETERS##########
 # J.Kang#
 # model option
+SEED = 1
 import os
 opt = 3 # 1 = just the linear parts, 2 = just the nonlinear parts, 3 = full model
 model= 'moist'
@@ -40,5 +41,7 @@ ts = int( float(tot_time) / dt ) #Total timesteps
 lim = 50  #Start saving after this time (model time-units), will be set to 0 if this is a restart
 st = 1  #How often to record data (in model time-units)
 
-dir_out = "/project2/tas1/Lutsko_Hell_model/output/" # output directory
-os.system('mkdir %s'%dir_out) # make output directory
+dir_out = "/scratch/06675/tg859749/moist_gfd23/"
+from pathlib import Path
+Path(dir_out+str(SEED)).mkdir(parents=True, exist_ok=True)
+#os.system('mkdir %s'%dir_out) # make output directory
