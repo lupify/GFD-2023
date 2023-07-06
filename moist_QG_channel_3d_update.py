@@ -16,10 +16,10 @@ import sys,os
 #  Declare some parameters, arrays, etc.
 
 
-print('Arg0', sys.argv[1])
 SEED=int(sys.argv[1])
 print('Random SEED:', SEED)
 np.random.seed(SEED)
+random.seed(SEED)
 
 #namelist
 #====================================================================

@@ -10,4 +10,4 @@ export PATH=/home1/06675/tg859749/anaconda3/bin:$PATH
 source /home1/06675/tg859749/anaconda3/etc/profile.d/conda.sh
 
 echo "SEED number" $SEED
-python3 -u -m moist_QG_channel_update.py $SEED
+python3 -u -m moist_QG_channel_3d_update.py $SEED

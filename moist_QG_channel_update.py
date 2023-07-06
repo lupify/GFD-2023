@@ -11,6 +11,7 @@ from numba import jit
 import scipy.fft as sci_fft
 import time as ti
 import qg_io
+import sys,os
 
 #######################################################
 #  Declare some parameters, arrays, etc.
@@ -18,7 +19,13 @@ import qg_io
 opt = 3 # 1 = just the linear parts, 2 = just the nonlinear parts, 3 = full model
 model = "moist" #moist or dry
 
+# Pass args
+SEED=int(sys.argv[1])
+print('Random SEED:', SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
+# 
 N = 128 #zonal size of spectral decomposition
 N2 = 128 #meridional size of spectral decomposition
 Lx = 72. #size of x 
