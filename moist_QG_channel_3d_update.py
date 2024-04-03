@@ -12,14 +12,70 @@ import scipy.fft as sci_fft
 import time as ti
 import qg_io_3d
 import sys,os
+import pickle
+import argparse
 #######################################################
 #  Declare some parameters, arrays, etc.
 
+data_dir = "/hb/scratch/llupinji/qgm_sim"
 
-SEED=int(sys.argv[1])
+parser = argparse.ArgumentParser(
+                    prog='Quasi Geostrophic Turbulence and Moisture Numerical Simulation',
+                    description='',
+                    epilog='')
+
+parser.add_argument("-s", "--seed", default = None, help="the starting seed used to generate starting conditions", type=int)
+
+parser.add_argument("-l", "--loadstate", default = "cold", help="cold start or loading start from previous", type=str)
+
+parser.add_argument("-n", "--noise", default = "none", help="adding random noise to initial conditions. ''none'', ''gauss''", type=str)
+
+# parser.add_argument("-d", "--dir_out", default = None, help="output directory", type=str)
+
+parser.add_argument("-r", "--res_file", default = None, help="load initial condition start file", type=str)
+
+parser.add_argument("-dd", "--data_dir", default = data_dir, help="root data dir", type=str)
+
+random_noise_choices = {"none", "gauss"}
+loadstate_choices = {"cold", "load"}
+
+args = parser.parse_args()
+
+SEED = args.seed
+LOAD = args.loadstate
+NOISE = args.noise
+# DIR_OUT = args.dir_out
+
+print(args)
+
+if SEED is None:
+  SEED = int(np.random.uniform(0,100))
+
+if LOAD not in loadstate_choices:
+  raise ValueError(f"--loadstate flag not valid. Must be in {loadstate_choices}")
+  
+if NOISE not in random_noise_choices:
+  raise ValueError(f"--noise flag not valid. Must be in {random_noise_choices}")
+
+# SEED=int(sys.argv[1])
+# LOAD=str(sys.argv[2])
+
 print('Random SEED:', SEED)
 np.random.seed(SEED)
-random.seed(SEED)
+
+dir_out = data_dir+'/'+f"{str(SEED)}_default"+'/'
+# dir_out = DIR_OUT
+
+from pathlib import Path
+Path(dir_out).mkdir(parents=True, exist_ok=True)
+
+## creates file for storing the data. will load in and do small permutations with this
+filename = dir_out+"output.2d.nc"
+filename3 = dir_out+"output.3d.nc"
+res_filename = dir_out+"res"
+
+
+# SEED=int(42)
 
 #namelist
 #====================================================================
@@ -58,27 +114,67 @@ if model == 'dry':
 
 #running options
 g = 0.04 #leapfrog filter coefficient
-init = "cold" #cold = cold start, load = load data from res_filename
+# init = "cold" #cold = cold start, load = load data from res_filename
+init = LOAD #cold = cold start, load = load data from res_filename
 
 #time and save options
-tot_time = 100 #Length of run (in model time-units)
+tot_time = 1000 #Length of run (in model time-units)
 dt = 0.025 #Timestep
 ts = int( float(tot_time) / dt ) #Total timesteps
 lim = 50  #Start saving after this time (model time-units), will be set to 0 if this is a restart
 st = 1  #How often to record data (in model time-units)
 
-dir_out = "/scratch/06675/tg859749/moist_gfd23/"+str(SEED)+'/'
-from pathlib import Path
-Path(dir_out).mkdir(parents=True, exist_ok=True)
+parameters = {
+              "opt" : opt,
+              "model" : model,
+              "N" : N, #zonal size of spectral decomposition
+              "N2" : N2, #meridional size of spectral decomposition
+              "Lx" : Lx, #size of x (in units of Rossby radius)
+              "Ly" : Ly, #size of y (in units of Rossby radius)
+
+              # free parameters
+              "nu" : nu, #viscous dissipation
+              "tau_d" : tau_d, #Newtonian relaxation time-scale for interface
+              "tau_f" : tau_f, #surface friction
+              "beta" : beta, #beta
+              "sigma" : sigma, # characteristic jet width
+              "U_1" : U_1, # maximum equilibrium wind
+
+              # moisture parameters, will be suppressed for dry run
+              "C" : C, #linearized Clausius-Clapeyron parameter
+              "L" : L, #non-dimensional measure of the strength of latent heating
+              "Er" : Er, #Evaporation rate
+
+              #running options
+              "g" : g, #leapfrog filter coefficient
+              "init" : init, #cold = cold start, load = load data from res_filename
+
+              #time and save options
+              "tot_time" : tot_time, #Length of run (in model time-units)
+              "dt" : dt, #Timestep
+              "ts" : ts, #Total timesteps
+              "lim" : lim,  #Start saving after this time (model time-units), will be set to 0 if this is a restart
+              "st" : st,  #How often to record data (in model time-units)
+             }
+
+# data_dir = "/hb/scratch/llupinji/qgm_sim"
+# dir_out = data_dir+str(SEED)+'/'
+# from pathlib import Path
+# Path(dir_out).mkdir(parents=True, exist_ok=True)
+
+with open(dir_out+"parameters.pkl", "wb") as h:
+    pickle.dump(parameters, h)
+    
 #os.system('mkdir %s'%dir_out) # make output directory
 #====================================================================
 #script_dir=os.getcwd()
 #exec(open(script_dir+'/%s.py'%namelist).read())
 #os.system('cp %s/%s.py %s'%(script_dir,namelist,dir_out)) # copy this namelist to output directory
 
-filename = dir_out+"output.2d.nc"
-filename3 = dir_out+"output.3d.nc"
-res_filename = dir_out+"res"
+# ## creates file for storing the data. will load in and do small permutations with this
+# filename = dir_out+"output.2d.nc"
+# filename3 = dir_out+"output.3d.nc"
+# res_filename = dir_out+"res"
 
 
 x = np.linspace( -Lx / 2, Lx / 2, N ,endpoint=False) 
@@ -249,6 +345,9 @@ def exponential_cutoff( data, a, s, kcut ):
 
 #######################################################
 #  Initial conditions:
+
+## to modify to include initial conditions and gaussian noise additions
+
 if init == "cold":
     ds, zu1n, zu2n, ztaun, mn, Pn, En, wn, wskewn, eke1n, eke2n, emf1n, emf2n, ehf1n, ehf2n, time = qg_io_3d.create_file( filename, y, int(tot_time - lim))
     # J.Kang added this line
@@ -288,8 +387,20 @@ elif init == "load":
     else:
          ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, time = qg_io_3d.load_dry_data( filename )
 
+    ## Permutations for the initial conditions of the loaded models
+    ## 1% of the std of psi1/2
+    # nfact = .1
+    # if NOISE == "gauss":
+      # psi_1_std = np.std(psic_1)
+      # psi_2_std = np.std(psic_2)
+      # gnoise1 = nfact*np.random.normal(0, psi_1_std, psic_1.shape)
+      # gnoise2 = nfact*np.random.normal(0, psi_2_std, psic_2.shape)
+      
+      # psic_1 = psic_1+psi_1_std*noise_factor
+      # psic_2 = psic_2+psi_2_std*noise_factor
+  
+  
  
-
 #######################################################
 #  Time-stepping functions
 
@@ -579,7 +690,7 @@ for i in range( t0, ts ):
             else:
                 print('writing-dry')
                 qg_io_3d.write_data_dry( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2 )
-                qg_io_3d.write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2)       
+                qg_io_3d.write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2)         
         
     end = ti.time()
     if i % 1000 == 0:

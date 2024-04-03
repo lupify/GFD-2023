@@ -300,7 +300,7 @@ def write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2):
 	ds3.sync()
 	return 0
 
-def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw):
+def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw, psi1, psi2):
 	ds3.variables['u1'][:] = tu1[:]
 	ds3.variables['u2'][:] = tu2[:]
 	ds3.variables['v1'][:] = tv1[:]
@@ -312,6 +312,11 @@ def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, t
 	ds3.variables['P'][:] = tP[:]
 	ds3.variables['E'][:] = tE[:]
 	ds3.variables['w'][:] = tw[:]
+  # ## added psi1 and psi2
+  
+	# ds3.variables['psi1'][:] = psi1[:]
+	# ds3.variables['psi2'][:] = psi2[:]
+  
 	ds3.sync()
 	return 0
 ##################################################
