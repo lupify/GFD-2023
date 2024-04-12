@@ -30,11 +30,16 @@ parser.add_argument("-l", "--loadstate", default = "cold", help="cold start or l
 
 parser.add_argument("-n", "--noise", default = "none", help="adding random noise to initial conditions. ''none'', ''gauss''", type=str)
 
-# parser.add_argument("-d", "--dir_out", default = None, help="output directory", type=str)
+parser.add_argument("-d", "--dir_out", default = None, help="output directory", type=str)
 
-parser.add_argument("-r", "--res_file", default = None, help="load initial condition start file", type=str)
+parser.add_argument("-r", "--dir_resume", default = None, help="load initial condition directory", type=str)
 
 parser.add_argument("-dd", "--data_dir", default = data_dir, help="root data dir", type=str)
+
+parser.add_argument("-nf", "--noise_factor", default = 0.2, help="noise factor for gauss", type=float)
+
+parser.add_argument("-tt", "--tot_time", default = 20000, help="noise factor for gauss", type=int)
+
 
 random_noise_choices = {"none", "gauss"}
 loadstate_choices = {"cold", "load"}
@@ -44,7 +49,13 @@ args = parser.parse_args()
 SEED = args.seed
 LOAD = args.loadstate
 NOISE = args.noise
-# DIR_OUT = args.dir_out
+DIR_OUT = args.dir_out
+DIR_RESUME = args.dir_resume
+NOISE_FACTOR = 0.2
+TOT_TIME = args.tot_time
+
+dir_out = DIR_OUT
+dir_resume = DIR_RESUME
 
 print(args)
 
@@ -63,7 +74,13 @@ if NOISE not in random_noise_choices:
 print('Random SEED:', SEED)
 np.random.seed(SEED)
 
-dir_out = data_dir+'/'+f"{str(SEED)}_default"+'/'
+if dir_out is None and LOAD == "cold":
+    dir_out = data_dir+'/'+f"cold_seed-{str(SEED)}"+'/'
+if dir_out is None and LOAD == "load":
+    if not (os.path.exists(dir_resume) or dir_resume is None):
+        raise ValueError("argument dir_resume must be defined and a valid directory")
+    dir_out = data_dir+'/'+f"load_resDir-{os.path.basename(dir_resume)}_noise-{NOISE}_seed-{str(SEED)}"+'/'
+print(f"Output directory: {dir_out}")
 # dir_out = DIR_OUT
 
 from pathlib import Path
@@ -73,7 +90,7 @@ Path(dir_out).mkdir(parents=True, exist_ok=True)
 filename = dir_out+"output.2d.nc"
 filename3 = dir_out+"output.3d.nc"
 res_filename = dir_out+"res"
-
+res_filename_init = dir_out+"res_init"
 
 # SEED=int(42)
 
@@ -118,15 +135,25 @@ g = 0.04 #leapfrog filter coefficient
 init = LOAD #cold = cold start, load = load data from res_filename
 
 #time and save options
-tot_time = 1000 #Length of run (in model time-units)
+# tot_time = 90000 #Length of run (in model time-units)
+# tot_time = 400 #Length of run (in model time-units), 4 units ~ 1 day prediction
+tot_time = TOT_TIME #Length of run (in model time-units), 4 units ~ 1 day prediction
+# tot_time = 100 #Length of run (in model time-units)
+# tot_time = 10 #Length of run (in model time-units)
 dt = 0.025 #Timestep
 ts = int( float(tot_time) / dt ) #Total timesteps
-lim = 50  #Start saving after this time (model time-units), will be set to 0 if this is a restart
+# # lim = 50  #Start saving after this time (model time-units), will be set to 0 if this is a restart
+## will just keep this as 0 regardless
+lim = 0  #Start saving after this time (model time-units), will be set to 0 if this is a restart
 st = 1  #How often to record data (in model time-units)
+# st = int(1.0/dt)  #How often to record data (in model time-units)
 
 parameters = {
               "opt" : opt,
               "model" : model,
+              "dir_resume" : dir_resume, # filename state is loaded from
+              "seed" : SEED,
+              "loadstate" : LOAD,
               "N" : N, #zonal size of spectral decomposition
               "N2" : N2, #meridional size of spectral decomposition
               "Lx" : Lx, #size of x (in units of Rossby radius)
@@ -154,7 +181,7 @@ parameters = {
               "dt" : dt, #Timestep
               "ts" : ts, #Total timesteps
               "lim" : lim,  #Start saving after this time (model time-units), will be set to 0 if this is a restart
-              "st" : st,  #How often to record data (in model time-units)
+              "st" : st,  #How often to record data (in model time-units)..
              }
 
 # data_dir = "/hb/scratch/llupinji/qgm_sim"
@@ -214,6 +241,7 @@ q_2 = np.zeros( ( ( 3 , N2 , N ) ) )
 print('real array shapes: ' + str(psi_1.shape))
 
 #Arrays for saving data
+## this is wrong?
 TN=int((tot_time - lim) // st) # J Kang editted here to deal with st < 1 cases.
 zu1 = np.zeros( ( TN, N2 ) )
 zu2 = np.zeros( ( TN, N2 ) )
@@ -229,6 +257,7 @@ zemf1 = np.zeros( ( TN , N2 ) )
 zemf2 = np.zeros( ( TN , N2 ) )
 zehf1 = np.zeros( ( TN , N2 ) )
 zehf2 = np.zeros( ( TN , N2 ) )
+
 # saving 3d data (added by J.Kang)
 tu1 = np.zeros( ( TN, N2 , N ) )
 tu2 = np.zeros( ( TN, N2 , N ) )
@@ -241,7 +270,8 @@ tm = np.zeros( ( TN, N2 , N ) )
 tP = np.zeros( ( TN, N2 , N ) )
 tE = np.zeros( ( TN, N2 , N ) )
 tw = np.zeros( ( TN, N2 , N ) )
-
+tpsi_1 = np.zeros( ( TN, N2 , N ) )
+tpsi_2 = np.zeros( ( TN, N2 , N ) )
 
 
 #######################################################
@@ -349,9 +379,10 @@ def exponential_cutoff( data, a, s, kcut ):
 ## to modify to include initial conditions and gaussian noise additions
 
 if init == "cold":
+    print(f"Cold start...")
     ds, zu1n, zu2n, ztaun, mn, Pn, En, wn, wskewn, eke1n, eke2n, emf1n, emf2n, ehf1n, ehf2n, time = qg_io_3d.create_file( filename, y, int(tot_time - lim))
     # J.Kang added this line
-    ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, time = qg_io_3d.create_file_xyt( filename3, x, y, int(tot_time - lim))
+    ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, psi1n, psi2n, time = qg_io_3d.create_file_xyt( filename3, x, y, int(tot_time - lim))
 
     psic_1[0] = [ [ random() for i in range(N // 2 + 1 ) ] for j in range(N2) ]
     psic_2[0] = [ [ random() for i in range(N // 2 + 1 ) ] for j in range(N2) ]
@@ -371,7 +402,7 @@ if init == "cold":
     #Start moisture at 50% saturation
     psi1 = fft.irfft2( psic_1[1], workers=nworker )
     psi2 = fft.irfft2( psic_2[1], workers=nworker )
-
+ 
     #Start at uniform 50% saturation
     m = C * (psi1 - psi2) / 2.
 
@@ -381,26 +412,40 @@ if init == "cold":
     t0 = 1
 
 elif init == "load":
-    psic_1, psic_2, qc_1, qc_2, mc, t0 = qg_io_3d.load_res_file(  res_filename )
-    if model == "moist":
-         ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew, time = qg_io_3d.load_moist_data( filename ) 
-    else:
-         ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, time = qg_io_3d.load_dry_data( filename )
-
+    # print(f"Resuming from {res_filename}...")
+    # psic_1, psic_2, qc_1, qc_2, mc, t0 = qg_io_3d.load_res_file(  res_filename )
+    # if model == "moist":
+         # ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew, time = qg_io_3d.load_moist_data( filename ) 
+    # else:
+         # ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, time = qg_io_3d.load_dry_data( filename )
+    print(f"Resuming from {dir_resume}...")
+    
+    filename_res = os.path.join(dir_resume, "output.2d.nc")
+    filename3_res = os.path.join(dir_resume,"output.3d.nc")
+    npz_res = os.path.join(dir_resume, "res")
+    
+    psic_1, psic_2, qc_1, qc_2, mc, t0_init = qg_io_3d.load_res_file(  npz_res )
+    ## starting at the 0 step
+    ## psis look ok from the load file
+    t0 = 0
+    
+    if model == "moist":        
+        ds, zu1n, zu2n, ztaun, mn, Pn, En, wn, wskewn, eke1n, eke2n, emf1n, emf2n, ehf1n, ehf2n, time = qg_io_3d.create_file( filename, y, int(tot_time - lim))
+        # J.Kang added this line
+        ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, psi1n, psi2n, time = qg_io_3d.create_file_xyt( filename3, x, y, int(tot_time - lim))        
+    
     ## Permutations for the initial conditions of the loaded models
     ## 1% of the std of psi1/2
-    # nfact = .1
-    # if NOISE == "gauss":
-      # psi_1_std = np.std(psic_1)
-      # psi_2_std = np.std(psic_2)
-      # gnoise1 = nfact*np.random.normal(0, psi_1_std, psic_1.shape)
-      # gnoise2 = nfact*np.random.normal(0, psi_2_std, psic_2.shape)
+    nfact = NOISE_FACTOR
+    if NOISE == "gauss":
+      print(f"adding gauss noise, noise factor: {nfact}")
+      psic_1_std = np.std(psic_1)
+      psic_2_std = np.std(psic_2)
+      gnoise1 = nfact*np.random.normal(0, psic_1_std, psic_1.shape)
+      gnoise2 = nfact*np.random.normal(0, psic_2_std, psic_2.shape)
+      psic_1 = psic_1+gnoise1
+      psic_2 = psic_2+gnoise2
       
-      # psic_1 = psic_1+psi_1_std*noise_factor
-      # psic_2 = psic_2+psi_2_std*noise_factor
-  
-  
- 
 #######################################################
 #  Time-stepping functions
 
@@ -481,6 +526,9 @@ mnl = np.zeros( ( N2, N // 2 + 1 ) ).astype(complex)
 
 F = exponential_cutoff( psic_1[0], np.log(1. + 400. * np.pi / float(N) ), 6, 7 )
 
+## saving initial conditions for reset if needed
+qg_io_3d.write_res_files( res_filename_init, psic_1, psic_2, qc_1, qc_2, mc, i )
+
 #Timestepping:
 for i in range( t0, ts ):
     start = ti.time()
@@ -500,6 +548,8 @@ for i in range( t0, ts ):
         forc2[:, :] = -(psi_1[1] - psi_2[1] - psi_R) / tau_d
 
 	#Sponge
+  ## mimicking periodicity in the y direction
+  ## alternative is chebyshev, but expensive 
         forc1[:, :] -= sponge[:, np.newaxis] * (q_1[1] - np.mean( q_1[1], axis = 1)[:, np.newaxis] )
         forc2[:, :] -= sponge[:, np.newaxis] * (q_2[1] - np.mean( q_2[1], axis = 1)[:, np.newaxis] )
 
@@ -544,6 +594,8 @@ for i in range( t0, ts ):
 
        #Convert to real space
        m = fft.irfft2(mc[2], workers =nworker)
+       ## pass this psi_1 and psi_2 to the save
+       ## save current psis to tensor, then pass at each of the write steps 
        psi_1[1] = fft.irfft2( psic_1[1], workers =nworker)
        psi_2[1] = fft.irfft2( psic_2[1], workers =nworker)
        u2 = fft.irfft2( -1.j * np.expand_dims(ll, 1) * psic_2[1], workers =nworker)
@@ -664,6 +716,9 @@ for i in range( t0, ts ):
             ttau[ind] = tau[:]
             tq1[ind] = q_1[1,:]
             tq2[ind] = q_2[1,:]
+            tpsi_1[ind] = psi_1[1,:]
+            tpsi_2[ind] = psi_2[1,:]
+            
             
             if model == "moist":
                 m = np.fft.irfft2( mc[1] )
@@ -679,18 +734,21 @@ for i in range( t0, ts ):
                 tP[ind] = P[:]
                 tE[ind] = E[:]
                 tw[ind] = w[:]
-
+        
+        ## check to make sure it is saving the right timesteps
+        ## if this isn't working correctly, save directly using tensor with timesteps x channels x lat x lon (psi1, psi2, m)
         if (i+1) % int(100/dt) == 0:
+        # if (i+1) % int(st) == 0:
             #Sync + save stuff to make it easier to restart
             qg_io_3d.write_res_files( res_filename, psic_1, psic_2, qc_1, qc_2, mc, i )
             if model == "moist":
-                print('writing-moist')
+                print(f'writing-moist: i = {i}')
                 qg_io_3d.write_data_moist( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew )       
-                qg_io_3d.write_data_moist_xyt( ds3, tu1, tu2,tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw)       
+                qg_io_3d.write_data_moist_xyt( ds3, tu1, tu2,tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw, tpsi_1, tpsi_2)       
             else:
-                print('writing-dry')
+                print(f'writing-dry: i = {i}')
                 qg_io_3d.write_data_dry( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2 )
-                qg_io_3d.write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2)         
+                qg_io_3d.write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tpsi_1, tpsi_2)         
         
     end = ti.time()
     if i % 1000 == 0:
@@ -698,6 +756,18 @@ for i in range( t0, ts ):
         time_left = delt * (float(ts) - float(i))
         print("1 iteration = %s" % delt)
         print("Estimated time left: %0.1f" % time_left)
+
+print(f"Tot time: {end-start}")
+## final update for resume, if planned to continue in another run
+qg_io_3d.write_res_files( res_filename, psic_1, psic_2, qc_1, qc_2, mc, i )
+if model == "moist":
+    print(f'writing-moist: i = {i}')
+    qg_io_3d.write_data_moist( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew )       
+    qg_io_3d.write_data_moist_xyt( ds3, tu1, tu2,tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw, tpsi_1, tpsi_2)       
+else:
+    print(f'writing-dry: i = {i}')
+    qg_io_3d.write_data_dry( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2 )
+    qg_io_3d.write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tpsi_1, tpsi_2)         
 
 ds.close()
 ds3.close()

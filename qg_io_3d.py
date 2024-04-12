@@ -202,6 +202,17 @@ def create_file_xyt( filename, x, y, t ):
 		    'f4',
 		    dimensions=['time', 'y', 'x'],
 		    zlib=True)
+	psi1n = ds3.createVariable(
+		    'psi1',
+		    'f4',
+		    dimensions=['time', 'y', 'x'],
+		    zlib=True)
+	psi2n = ds3.createVariable(
+		    'psi2',
+		    'f4',
+		    dimensions=['time', 'y', 'x'],
+		    zlib=True)
+  
 	u1n.setncatts({'standard_name': 'u1',
 		                  'units': 'dimensionless',
 		                  'grid_mapping': 'x_y'})
@@ -235,7 +246,13 @@ def create_file_xyt( filename, x, y, t ):
 	wn.setncatts({'standard_name': 'w',
 		                  'units': 'dimensionless',
 		                  'grid_mapping': 'x_y'})
-	return ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, time
+	psi1n.setncatts({'standard_name': 'psi1',
+		                  'units': 'dimensionless',
+		                  'grid_mapping': 'x_y'})
+	psi2n.setncatts({'standard_name': 'psi2',
+		                  'units': 'dimensionless',
+		                  'grid_mapping': 'x_y'})
+	return ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, psi1n, psi2n, time
 
 ###################################################
 def sdat(c, F):
@@ -254,7 +271,7 @@ def write_res_files( filename, psic1, psic2, qc1, qc2, mc, t0 ):
 
 	return 0
 
-def write_data_dry( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2 ):
+def write_data_dry( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2):
 	
 	ds.variables['zu1'][:] = zu1[:]
 	ds.variables['zu2'][:] = zu2[:]
@@ -268,8 +285,8 @@ def write_data_dry( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2
 	ds.sync()
 
 	return 0
-
-def write_data_moist( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew ):
+  
+def write_data_moist( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew):
 	ds.variables['zu1'][:] = zu1[:]
 	ds.variables['zu2'][:] = zu2[:]
 	ds.variables['ztau'][:] = ztau[:]
@@ -287,9 +304,20 @@ def write_data_moist( ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zeh
 	ds.sync()
 	return 0
 
-###################################################
-#Added by J.Kang to produce (x,y,t) outputs
-def write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2):
+# ###################################################
+# #Added by J.Kang to produce (x,y,t) outputs
+# def write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2):
+	# ds3.variables['u1'][:] = tu1[:]
+	# ds3.variables['u2'][:] = tu2[:]
+	# ds3.variables['v1'][:] = tv1[:]
+	# ds3.variables['v2'][:] = tv2[:]
+	# ds3.variables['tau'][:] = ttau[:]
+	# ds3.variables['q1'][:] = tq1[:]
+	# ds3.variables['q2'][:] = tq2[:]
+	# ds3.sync()
+	# return 0
+
+def write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tpsi_1, tpsi_2):
 	ds3.variables['u1'][:] = tu1[:]
 	ds3.variables['u2'][:] = tu2[:]
 	ds3.variables['v1'][:] = tv1[:]
@@ -297,10 +325,28 @@ def write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2):
 	ds3.variables['tau'][:] = ttau[:]
 	ds3.variables['q1'][:] = tq1[:]
 	ds3.variables['q2'][:] = tq2[:]
+	ds3.variables['psi1'][:] = tpsi_1[:]
+	ds3.variables['psi2'][:] = tpsi_2[:]
+  
 	ds3.sync()
 	return 0
 
-def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw, psi1, psi2):
+# def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw, psi1, psi2):
+	# ds3.variables['u1'][:] = tu1[:]
+	# ds3.variables['u2'][:] = tu2[:]
+	# ds3.variables['v1'][:] = tv1[:]
+	# ds3.variables['v2'][:] = tv2[:]
+	# ds3.variables['tau'][:] = ttau[:]
+	# ds3.variables['q1'][:] = tq1[:]
+	# ds3.variables['q2'][:] = tq2[:]
+	# ds3.variables['m'][:] = tm[:]
+	# ds3.variables['P'][:] = tP[:]
+	# ds3.variables['E'][:] = tE[:]
+	# ds3.variables['w'][:] = tw[:]
+	# ds3.sync()
+	# return 0
+  
+def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, tw, tpsi_1, tpsi_2):
 	ds3.variables['u1'][:] = tu1[:]
 	ds3.variables['u2'][:] = tu2[:]
 	ds3.variables['v1'][:] = tv1[:]
@@ -314,8 +360,8 @@ def write_data_moist_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tm, tP, tE, t
 	ds3.variables['w'][:] = tw[:]
   # ## added psi1 and psi2
   
-	# ds3.variables['psi1'][:] = psi1[:]
-	# ds3.variables['psi2'][:] = psi2[:]
+	ds3.variables['psi1'][:] = tpsi_1[:]
+	ds3.variables['psi2'][:] = tpsi_2[:]
   
 	ds3.sync()
 	return 0
@@ -371,5 +417,41 @@ def load_moist_data( filename ):
     zw = ds.variables['zw'][:]
     zwskew = ds.variables['zwskew'][:]
     time = ds.variables['time'][:]
+    
     return ds, zu1, zu2, ztau, zeke1, zeke2, zemf1, zemf2, zehf1, zehf2, zm, zP, zE, zw, zwskew, time
 
+# def write_data_dry_xyt( ds3, tu1, tu2, tv1, tv2, ttau, tq1, tq2, tpsi_1, tpsi_2):
+	# ds3.variables['u1'][:] = tu1[:]
+	# ds3.variables['u2'][:] = tu2[:]
+	# ds3.variables['v1'][:] = tv1[:]
+	# ds3.variables['v2'][:] = tv2[:]
+	# ds3.variables['tau'][:] = ttau[:]
+	# ds3.variables['q1'][:] = tq1[:]
+	# ds3.variables['q2'][:] = tq2[:]
+	# ds3.variables['psi1'][:] = tpsi_1[:]
+	# ds3.variables['psi2'][:] = tpsi_2[:]
+  
+	# ds3.sync()
+	# return 0
+  
+def load_moist_data_xyt(filename3):
+  
+    ds3 = Dataset(filename3, mode='a')
+    
+    # print(ds3.variables)
+    u1n = ds3.variables['u1'][:]
+    u2n = ds3.variables['u2'][:]
+    v1n = ds3.variables['v1'][:]
+    v2n = ds3.variables['v2'][:]
+    taun = ds3.variables['tau'][:]
+    q1n = ds3.variables['q1'][:]
+    q2n = ds3.variables['q2'][:]
+    mn = ds3.variables['m'][:]
+    Pn = ds3.variables['P'][:]
+    En = ds3.variables['E'][:]
+    wn = ds3.variables['w'][:]
+    # ## added psi1 and psi2
+    psi1n = ds3.variables['psi1'][:]
+    psi2n = ds3.variables['psi2'][:]
+  
+    return ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, psi1n, psi2n
