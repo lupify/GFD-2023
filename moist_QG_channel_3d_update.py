@@ -40,7 +40,6 @@ parser.add_argument("-nf", "--noise_factor", default = 0.2, help="noise factor f
 
 parser.add_argument("-tt", "--tot_time", default = 20000, help="noise factor for gauss", type=int)
 
-
 random_noise_choices = {"none", "gauss"}
 loadstate_choices = {"cold", "load"}
 
@@ -131,18 +130,12 @@ if model == 'dry':
 
 #running options
 g = 0.04 #leapfrog filter coefficient
-# init = "cold" #cold = cold start, load = load data from res_filename
 init = LOAD #cold = cold start, load = load data from res_filename
 
-#time and save options
-# tot_time = 90000 #Length of run (in model time-units)
-# tot_time = 400 #Length of run (in model time-units), 4 units ~ 1 day prediction
 tot_time = TOT_TIME #Length of run (in model time-units), 4 units ~ 1 day prediction
-# tot_time = 100 #Length of run (in model time-units)
-# tot_time = 10 #Length of run (in model time-units)
 dt = 0.025 #Timestep
 ts = int( float(tot_time) / dt ) #Total timesteps
-# # lim = 50  #Start saving after this time (model time-units), will be set to 0 if this is a restart
+#lim = 50  #Start saving after this time (model time-units), will be set to 0 if this is a restart
 ## will just keep this as 0 regardless
 lim = 0  #Start saving after this time (model time-units), will be set to 0 if this is a restart
 st = 1  #How often to record data (in model time-units)
@@ -184,26 +177,10 @@ parameters = {
               "st" : st,  #How often to record data (in model time-units)..
              }
 
-# data_dir = "/hb/scratch/llupinji/qgm_sim"
-# dir_out = data_dir+str(SEED)+'/'
-# from pathlib import Path
-# Path(dir_out).mkdir(parents=True, exist_ok=True)
-
 with open(dir_out+"parameters.pkl", "wb") as h:
     pickle.dump(parameters, h)
     
-#os.system('mkdir %s'%dir_out) # make output directory
-#====================================================================
-#script_dir=os.getcwd()
-#exec(open(script_dir+'/%s.py'%namelist).read())
-#os.system('cp %s/%s.py %s'%(script_dir,namelist,dir_out)) # copy this namelist to output directory
-
-# ## creates file for storing the data. will load in and do small permutations with this
-# filename = dir_out+"output.2d.nc"
-# filename3 = dir_out+"output.3d.nc"
-# res_filename = dir_out+"res"
-
-
+    
 x = np.linspace( -Lx / 2, Lx / 2, N ,endpoint=False) 
 y = np.linspace( -Ly / 2, Ly / 2, N2 ,endpoint=False) 
 
@@ -435,7 +412,6 @@ elif init == "load":
         ds3, u1n, u2n, v1n, v2n, taun, q1n, q2n, mn, Pn, En, wn, psi1n, psi2n, time = qg_io_3d.create_file_xyt( filename3, x, y, int(tot_time - lim))        
     
     ## Permutations for the initial conditions of the loaded models
-    ## 1% of the std of psi1/2
     nfact = NOISE_FACTOR
     if NOISE == "gauss":
       print(f"adding gauss noise, noise factor: {nfact}")
